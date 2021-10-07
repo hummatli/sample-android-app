@@ -1,0 +1,15 @@
+package com.vinted.demovinted.di
+
+import com.vinted.demovinted.utils.TimberInitializer
+import dagger.Module
+import dagger.Provides
+import dagger.hilt.InstallIn
+import dagger.hilt.components.SingletonComponent
+
+@Module
+@InstallIn(SingletonComponent::class)
+class MainModule {
+
+    @Provides
+    fun provideTimberInitializer(): TimberInitializer = TimberInitializer()
+}

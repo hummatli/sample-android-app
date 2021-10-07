@@ -1,30 +1,70 @@
 package com.vinted.demovinted.di
 
-import com.squareup.moshi.Moshi
-import com.vinted.demovinted.data.network.api.Api
+import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
+import com.vinted.demovinted.BuildConfig
+import com.vinted.demovinted.data.repository.remote.api.Api
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
-import dagger.hilt.android.components.ApplicationComponent
-import okhttp3.Interceptor
+import dagger.hilt.components.SingletonComponent
+import kotlinx.serialization.json.Json
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
+import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
-import retrofit2.adapter.rxjava2.RxJava2CallAdapterFactory
-import retrofit2.converter.moshi.MoshiConverterFactory
+import java.util.concurrent.TimeUnit
 
 @Module
-@InstallIn(ApplicationComponent::class)
+@InstallIn(SingletonComponent::class)
 class NetworkingModule {
 
     @Provides
-    fun providesApi(
-        moshi: Moshi
-    ): Api {
+    fun providesInterceptor(): HttpLoggingInterceptor {
+        val interceptor = HttpLoggingInterceptor()
+        interceptor.setLevel(
+            if (BuildConfig.DEBUG) HttpLoggingInterceptor.Level.BODY
+            else HttpLoggingInterceptor.Level.NONE
+        )
+        return interceptor
+    }
+
+    @Provides
+    fun providesOkHttpClient(
+        interceptor: HttpLoggingInterceptor
+    ): OkHttpClient {
+        val builder = OkHttpClient.Builder()
+            .addInterceptor(interceptor)
+            .retryOnConnectionFailure(false)
+            .callTimeout(60, TimeUnit.SECONDS)
+            .connectTimeout(60, TimeUnit.SECONDS)
+            .readTimeout(60, TimeUnit.SECONDS)
+            .writeTimeout(60, TimeUnit.SECONDS)
+
+        return builder.build()
+    }
+
+    @Provides
+    fun providesJson(): Json = Json {
+        isLenient = true
+        encodeDefaults = true
+        ignoreUnknownKeys = true
+        prettyPrint = true
+    }
+
+    @Provides
+    fun providesRetrofit(
+        client: OkHttpClient,
+        json: Json
+    ): Retrofit {
         return Retrofit.Builder()
-            .baseUrl("http://mobile-homework-api.vinted.net/")
-            .addCallAdapterFactory(RxJava2CallAdapterFactory.create())
-            .addConverterFactory(MoshiConverterFactory.create(moshi))
+            .client(client)
+            .baseUrl(BuildConfig.BASE_API_URL)
+            .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
             .build()
-            .create(Api::class.java)
+    }
+
+    @Provides
+    fun providesApi(retrofit: Retrofit): Api {
+        return retrofit.create(Api::class.java)
     }
 }
